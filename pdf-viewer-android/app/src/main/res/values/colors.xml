@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#1565C0</color>
+    <color name="bar_bg">#FFFFFF</color>
+    <color name="page_bg">#E3E5E8</color>
+    <color name="text_primary">#1F2328</color>
+    <color name="icon_default">#3C4043</color>
+    <color name="icon_disabled">#663C4043</color>
+    <color name="tool_selected_bg">#261565C0</color>
+    <color name="indicator_bg">#99000000</color>
+    <color name="ic_launcher_background">#1565C0</color>
+</resources>

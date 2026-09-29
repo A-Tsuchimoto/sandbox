@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MarkPDF</string>
+    <string name="open_pdf">PDFを開く</string>
+    <string name="no_document">PDFが開かれていません</string>
+    <string name="loading">読み込み中…</string>
+    <string name="open_failed">PDFを開けませんでした</string>
+    <string name="open_failed_password">パスワード付きPDFには未対応です</string>
+    <string name="tool_pen">マーカー</string>
+    <string name="tool_eraser">消しゴム</string>
+    <string name="undo">元に戻す</string>
+    <string name="more">その他</string>
+    <string name="pen_hint">なぞると始点からまっすぐ線が引けます（水平・垂直に吸着）。スクロールは2本指で。</string>
+    <string name="eraser_hint">消したいハイライトをタップ／なぞってください</string>
+    <string name="width_thin">細</string>
+    <string name="width_medium">中</string>
+    <string name="width_thick">太</string>
+    <string name="width_label">太さ：%1$s</string>
+    <string name="page_indicator">%1$d / %2$d</string>
+    <string name="menu_pro">Pro版について</string>
+    <string name="pro_title">MarkPDF Pro（買い切り）</string>
+    <string name="pro_message">無料版ではマーカー2色まで使えます。\n\nPro版（数百円・買い切り）では全8色が解放されます。広告は無料版・Pro版とも表示しません。\n\n※購入機能は試作段階のため未実装です。</string>
+    <string name="pro_active">Pro版が有効です。ご利用ありがとうございます！</string>
+    <string name="close">閉じる</string>
+    <string name="debug_enable_pro">試作：Proを有効化</string>
+    <string name="debug_disable_pro">試作：Proを無効化</string>
+</resources>
