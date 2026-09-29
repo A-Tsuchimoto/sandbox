@@ -21,6 +21,7 @@ import app.markpdf.pdf.HighlightStore
 import app.markpdf.pdf.PdfDoc
 import app.markpdf.pdf.SaveName
 import app.markpdf.pdf.export.HighlightExporter
+import app.markpdf.ui.JoystickView
 import app.markpdf.ui.PageListView
 import app.markpdf.ui.PageView
 import app.markpdf.ui.Palette
@@ -47,6 +48,8 @@ class MainActivity : Activity(), PageView.Host {
     private lateinit var btnSave: ImageButton
     private lateinit var zoomBar: View
     private lateinit var zoomLabel: TextView
+    private lateinit var btnSnap: TextView
+    private lateinit var joystick: JoystickView
 
     private lateinit var pro: ProStatus
     private val prefs by lazy { getSharedPreferences("settings", MODE_PRIVATE) }
@@ -68,6 +71,8 @@ class MainActivity : Activity(), PageView.Host {
         private set
     override val strokeColor: Int get() = Palette.colors[colorIndex]
     override val strokeWidth: Float get() = Palette.widths[widthIndex]
+    override var textSnap = true
+        private set
 
     override fun highlights(page: Int): List<Highlight> = store?.page(page) ?: emptyList()
 
@@ -104,18 +109,24 @@ class MainActivity : Activity(), PageView.Host {
         btnSave = findViewById(R.id.btnSave)
         zoomBar = findViewById(R.id.zoomBar)
         zoomLabel = findViewById(R.id.zoomLabel)
+        btnSnap = findViewById(R.id.btnSnap)
+        joystick = findViewById(R.id.joystick)
 
         applyWindowInsets()
 
         colorIndex = prefs.getInt(KEY_COLOR, 0).coerceIn(0, Palette.colors.lastIndex)
         if (Palette.isLocked(colorIndex, pro.isPro)) colorIndex = 0
         widthIndex = prefs.getInt(KEY_WIDTH, 1).coerceIn(0, Palette.widths.lastIndex)
+        textSnap = prefs.getBoolean(KEY_SNAP, true)
+        btnSnap.isSelected = textSnap
 
         emptyView.setOnClickListener { openPicker() }
         btnPen.setOnClickListener { toggleTool(Tool.PEN) }
         btnEraser.setOnClickListener { toggleTool(Tool.ERASER) }
         btnUndo.setOnClickListener { undo() }
         btnSave.setOnClickListener { startSave() }
+        btnSnap.setOnClickListener { toggleSnap() }
+        joystick.onMove = { x, y -> pageList.setPadVelocity(x, y) }
         findViewById<View>(R.id.btnZoomIn).setOnClickListener { pageList.zoomIn() }
         findViewById<View>(R.id.btnZoomOut).setOnClickListener { pageList.zoomOut() }
         zoomLabel.setOnClickListener { pageList.resetZoom() }
@@ -309,6 +320,9 @@ class MainActivity : Activity(), PageView.Host {
         btnPen.isSelected = tool == Tool.PEN
         btnEraser.isSelected = tool == Tool.ERASER
         penBar.visibility = if (tool == Tool.PEN) View.VISIBLE else View.GONE
+        // 編集中（マーカー／消しゴム）は 1 本指がページに使われるので、移動用パッドを出す
+        joystick.visibility = if (hasDoc && tool != Tool.NONE) View.VISIBLE else View.GONE
+        if (joystick.visibility != View.VISIBLE) pageList.setPadVelocity(0f, 0f)
         updateUndo()
     }
 
@@ -340,6 +354,13 @@ class MainActivity : Activity(), PageView.Host {
         colorIndex = i
         prefs.edit().putInt(KEY_COLOR, i).apply()
         for (c in 0 until swatches.childCount) swatches.getChildAt(c).isSelected = c == i
+    }
+
+    private fun toggleSnap() {
+        textSnap = !textSnap
+        btnSnap.isSelected = textSnap
+        prefs.edit().putBoolean(KEY_SNAP, textSnap).apply()
+        Toast.makeText(this, if (textSnap) R.string.text_snap_on else R.string.text_snap_off, Toast.LENGTH_SHORT).show()
     }
 
     private fun cycleWidth() {
@@ -428,5 +449,6 @@ class MainActivity : Activity(), PageView.Host {
         const val KEY_URI = "doc_uri"
         const val KEY_COLOR = "color_index"
         const val KEY_WIDTH = "width_index"
+        const val KEY_SNAP = "text_snap"
     }
 }

@@ -17,11 +17,15 @@
     <string name="zoom_out">縮小</string>
     <string name="zoom_reset">等倍に戻す</string>
     <string name="zoom_label">%1$d%%</string>
+    <string name="text_snap">文字吸着</string>
+    <string name="text_snap_on">文字吸着オン：近くの文字の行の中央に線を合わせます</string>
+    <string name="text_snap_off">文字吸着オフ：なぞった位置にそのまま引きます</string>
+    <string name="joystick">移動パッド</string>
     <string name="tool_pen">マーカー</string>
     <string name="tool_eraser">消しゴム</string>
     <string name="undo">元に戻す</string>
     <string name="more">その他</string>
-    <string name="pen_hint">なぞると始点からまっすぐ線が引けます（水平・垂直に吸着）。スクロール・ズームは2本指で。</string>
+    <string name="pen_hint">なぞると始点からまっすぐ線が引けます（水平・垂直に吸着）。移動は右下のパッドか2本指で。</string>
     <string name="eraser_hint">消したいハイライトをタップ／なぞってください</string>
     <string name="width_thin">細</string>
     <string name="width_medium">中</string>

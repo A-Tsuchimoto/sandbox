@@ -17,6 +17,7 @@ import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.roundToInt
 
 /**
@@ -87,6 +88,31 @@ class PageListView @JvmOverloads constructor(
     )
 
     private val detailRunnable = Runnable { updateDetails() }
+
+    // アナログパッドによる移動（px/秒）
+    private val maxPadSpeed = 1100 * resources.displayMetrics.density
+    private var padVx = 0f
+    private var padVy = 0f
+    private var padFracX = 0f
+    private var padFracY = 0f
+    private var padLastNanos = 0L
+    private val padRunnable = object : Runnable {
+        override fun run() {
+            if (!isPadMoving) return
+            val now = System.nanoTime()
+            val dt = ((now - padLastNanos) / 1e9f).coerceAtMost(0.05f)
+            padLastNanos = now
+            padFracX += padVx * dt
+            padFracY += padVy * dt
+            val ix = padFracX.toInt()
+            val iy = padFracY.toInt()
+            padFracX -= ix
+            padFracY -= iy
+            scrollToClamped(scrollX + ix, scrollY + iy)
+            postOnAnimation(this)
+        }
+    }
+    private val isPadMoving get() = padVx != 0f || padVy != 0f
 
     init {
         setWillNotDraw(false)
@@ -169,6 +195,34 @@ class PageListView @JvmOverloads constructor(
         scrollToClamped((newCx - fx).roundToInt(), (newCy - fy).roundToInt())
         requestLayout()
         onZoomChanged?.invoke(zoom)
+    }
+
+    // ---- アナログパッド ----
+
+    /**
+     * パッドの傾き ([nx], [ny] は -1..1) に応じて連続スクロールする。
+     * 小さく倒すとゆっくり、大きく倒すと速く（細かい位置合わせと長距離移動の両立）。
+     */
+    fun setPadVelocity(nx: Float, ny: Float) {
+        val mag = hypot(nx, ny)
+        val wasMoving = isPadMoving
+        if (mag < 0.08f) {
+            padVx = 0f
+            padVy = 0f
+            if (wasMoving) scheduleDetails()
+            return
+        }
+        val speed = maxPadSpeed * mag.pow(1.7f) / mag
+        padVx = nx * speed
+        padVy = ny * speed
+        if (!wasMoving) {
+            scroller.forceFinished(true)
+            zoomAnimator?.cancel()
+            padLastNanos = System.nanoTime()
+            padFracX = 0f
+            padFracY = 0f
+            postOnAnimation(padRunnable)
+        }
     }
 
     // ---- レイアウト ----
@@ -423,7 +477,7 @@ class PageListView @JvmOverloads constructor(
 
     private fun updateDetails() {
         val d = doc ?: return
-        if (dragging || !scroller.isFinished || zoomAnimator?.isRunning == true) {
+        if (dragging || isPadMoving || !scroller.isFinished || zoomAnimator?.isRunning == true) {
             scheduleDetails()
             return
         }
@@ -463,6 +517,8 @@ class PageListView @JvmOverloads constructor(
         super.onDetachedFromWindow()
         removeCallbacks(detailRunnable)
         zoomAnimator?.cancel()
+        padVx = 0f
+        padVy = 0f
     }
 
     private companion object {

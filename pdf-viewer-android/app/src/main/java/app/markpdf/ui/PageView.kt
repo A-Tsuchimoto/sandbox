@@ -36,6 +36,8 @@ class PageView(
         val strokeColor: Int
         /** ページ幅に対する割合 */
         val strokeWidth: Float
+        /** 文字に吸着するか */
+        val textSnap: Boolean
         fun highlights(page: Int): List<Highlight>
         fun onStroke(page: Int, x1: Float, y1: Float, x2: Float, y2: Float)
         fun onErase(page: Int, highlight: Highlight)
@@ -87,6 +89,12 @@ class PageView(
     private var ex = 0f
     private var ey = 0f
 
+    // 実際に描く（確定する）線。文字に吸着したときは上の生の座標からずれる
+    private var dsx = 0f
+    private var dsy = 0f
+    private var dex = 0f
+    private var dey = 0f
+
     init {
         setBackgroundColor(Color.WHITE)
     }
@@ -111,7 +119,7 @@ class PageView(
             drawMarker(canvas, hl.color, hl.x1 * w, hl.y1 * h, hl.x2 * w, hl.y2 * h, hl.width * w)
         }
         if (drawing) {
-            drawMarker(canvas, host.strokeColor, sx, sy, ex, ey, host.strokeWidth * w)
+            drawMarker(canvas, host.strokeColor, dsx, dsy, dex, dey, host.strokeWidth * w)
         }
     }
 
@@ -137,6 +145,7 @@ class PageView(
                 sy = e.y
                 ex = sx
                 ey = sy
+                updateSnapped()
                 invalidate()
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
@@ -148,6 +157,7 @@ class PageView(
                 val (x, y) = StrokeGeometry.snapEnd(sx, sy, e.x, e.y, width.toFloat(), height.toFloat())
                 ex = x
                 ey = y
+                updateSnapped()
                 invalidate()
             }
             MotionEvent.ACTION_UP -> if (drawing) {
@@ -155,13 +165,35 @@ class PageView(
                 if (hypot(ex - sx, ey - sy) >= minStrokePx) {
                     val w = width.toFloat()
                     val h = height.toFloat()
-                    host.onStroke(pageIndex, sx / w, sy / h, ex / w, ey / h)
+                    host.onStroke(pageIndex, dsx / w, dsy / h, dex / w, dey / h)
                 }
                 invalidate()
             }
             MotionEvent.ACTION_CANCEL -> cancelStroke()
         }
         return true
+    }
+
+    /** 水平／垂直の線なら、近くの文字の行（列）の中央に寄せる */
+    private fun updateSnapped() {
+        dsx = sx
+        dsy = sy
+        dex = ex
+        dey = ey
+        val bmp = bitmap ?: return
+        if (!host.textSnap || width == 0 || height == 0) return
+        val kx = bmp.width.toFloat() / width
+        val ky = bmp.height.toFloat() / height
+        val thickness = host.strokeWidth * bmp.width
+        if (ey == sy) {
+            val c = sharedSnap.snapHorizontal(bmp, sx * kx, ex * kx, sy * ky, thickness) ?: return
+            dsy = c / ky
+            dey = dsy
+        } else if (ex == sx) {
+            val c = sharedSnap.snapVertical(bmp, sy * ky, ey * ky, sx * kx, thickness) ?: return
+            dsx = c / kx
+            dex = dsx
+        }
     }
 
     private fun onEraserTouch(e: MotionEvent): Boolean {
@@ -192,5 +224,10 @@ class PageView(
             drawing = false
             invalidate()
         }
+    }
+
+    private companion object {
+        /** 作業用バッファを全ページで共有する（UI スレッドのみで使う） */
+        val sharedSnap = TextSnap()
     }
 }
