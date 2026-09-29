@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.DocumentsContract
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowInsets
 import android.widget.ImageButton
 import android.widget.LinearLayout
@@ -323,6 +324,12 @@ class MainActivity : Activity(), PageView.Host {
         // 編集中（マーカー／消しゴム）は 1 本指がページに使われるので、移動用パッドを出す
         joystick.visibility = if (hasDoc && tool != Tool.NONE) View.VISIBLE else View.GONE
         if (joystick.visibility != View.VISIBLE) pageList.setPadVelocity(0f, 0f)
+        // パッドが出ている間は、ズームボタンをパッドのすぐ上へ（どちらも左手で届く位置）
+        (zoomBar.layoutParams as ViewGroup.MarginLayoutParams).let { lp ->
+            val d = resources.displayMetrics.density
+            lp.bottomMargin = ((if (joystick.visibility == View.VISIBLE) 12 + 112 + 8 else 12) * d).toInt()
+            zoomBar.layoutParams = lp
+        }
         updateUndo()
     }
 

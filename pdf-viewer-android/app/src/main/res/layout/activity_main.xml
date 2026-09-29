@@ -135,12 +135,12 @@
             android:textColor="#FFFFFF"
             android:textSize="13sp"
             android:visibility="gone" />
-        <!-- 編集中の移動用アナログパッド -->
+        <!-- 編集中の移動用アナログパッド（左手で操作、右手でなぞる想定） -->
         <app.markpdf.ui.JoystickView
             android:id="@+id/joystick"
             android:layout_width="112dp"
             android:layout_height="112dp"
-            android:layout_gravity="bottom|end"
+            android:layout_gravity="bottom|start"
             android:layout_margin="12dp"
             android:contentDescription="@string/joystick"
             android:visibility="gone" />

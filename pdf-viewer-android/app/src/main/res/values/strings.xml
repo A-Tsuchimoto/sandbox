@@ -25,7 +25,7 @@
     <string name="tool_eraser">消しゴム</string>
     <string name="undo">元に戻す</string>
     <string name="more">その他</string>
-    <string name="pen_hint">なぞると始点からまっすぐ線が引けます（水平・垂直に吸着）。移動は右下のパッドか2本指で。</string>
+    <string name="pen_hint">なぞると始点からまっすぐ線が引けます（水平・垂直に吸着）。移動は左下のパッドか2本指で。</string>
     <string name="eraser_hint">消したいハイライトをタップ／なぞってください</string>
     <string name="width_thin">細</string>
     <string name="width_medium">中</string>
