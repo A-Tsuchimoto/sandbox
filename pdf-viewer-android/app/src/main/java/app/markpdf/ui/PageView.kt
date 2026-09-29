@@ -50,6 +50,24 @@ class PageView(
     /** 現在の [bitmap] を要求したときの幅（0 = 未要求） */
     var requestedWidth = 0
 
+    /** 拡大時に重ねる、見えている部分だけの高解像度画像 */
+    private var detail: Bitmap? = null
+    private var detailLeft = 0
+    private var detailTop = 0
+    private var detailPageWidth = 0
+
+    /** 要求中／表示中の高解像度画像の識別子（ページ幅と矩形） */
+    var detailKey: String? = null
+
+    fun setDetail(bmp: Bitmap?, left: Int = 0, top: Int = 0, pageWidth: Int = 0) {
+        detail = bmp
+        detailLeft = left
+        detailTop = top
+        detailPageWidth = pageWidth
+        if (bmp == null) detailKey = null
+        invalidate()
+    }
+
     private val density = resources.displayMetrics.density
     private val minStrokePx = 6 * density
     private val eraseSlopPx = 10 * density
@@ -84,6 +102,10 @@ class PageView(
         bitmap?.let {
             dst.set(0f, 0f, w, h)
             canvas.drawBitmap(it, null, dst, bitmapPaint)
+        }
+        detail?.let {
+            // 拡大率が変わった直後は位置が合わないので描かない（すぐ描き直される）
+            if (detailPageWidth == width) canvas.drawBitmap(it, detailLeft.toFloat(), detailTop.toFloat(), null)
         }
         for (hl in host.highlights(pageIndex)) {
             drawMarker(canvas, hl.color, hl.x1 * w, hl.y1 * h, hl.x2 * w, hl.y2 * h, hl.width * w)

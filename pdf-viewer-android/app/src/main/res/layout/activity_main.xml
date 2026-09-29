@@ -19,23 +19,23 @@
         android:paddingStart="4dp"
         android:paddingEnd="4dp">
 
-        <ImageButton
-            android:id="@+id/btnOpen"
-            style="@style/ToolButton"
-            android:contentDescription="@string/open_pdf"
-            android:src="@drawable/ic_folder_open" />
-
         <TextView
             android:id="@+id/title"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
+            android:layout_marginStart="12dp"
             android:layout_weight="1"
             android:ellipsize="middle"
             android:singleLine="true"
             android:text="@string/app_name"
             android:textColor="@color/text_primary"
             android:textSize="17sp" />
+
+        <ImageButton
+            android:id="@+id/btnSave"
+            style="@style/ToolButton"
+            android:contentDescription="@string/save"
+            android:src="@drawable/ic_save" />
 
         <ImageButton
             android:id="@+id/btnPen"
@@ -70,7 +70,8 @@
         <app.markpdf.ui.PageListView
             android:id="@+id/pageList"
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+            android:layout_height="match_parent"
+            android:scrollbars="vertical|horizontal" />
 
         <TextView
             android:id="@+id/emptyView"
@@ -84,6 +85,42 @@
             android:text="@string/open_pdf"
             android:textColor="#FFFFFF"
             android:textSize="16sp" />
+
+        <!-- ズーム：− 倍率 ＋（倍率をタップで等倍） -->
+        <LinearLayout
+            android:id="@+id/zoomBar"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_gravity="bottom|start"
+            android:layout_margin="12dp"
+            android:background="@drawable/bg_zoom"
+            android:elevation="4dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/btnZoomOut"
+                style="@style/ZoomButton"
+                android:contentDescription="@string/zoom_out"
+                android:text="−" />
+
+            <TextView
+                android:id="@+id/zoomLabel"
+                android:layout_width="52dp"
+                android:layout_height="match_parent"
+                android:background="?android:attr/selectableItemBackground"
+                android:contentDescription="@string/zoom_reset"
+                android:gravity="center"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/btnZoomIn"
+                style="@style/ZoomButton"
+                android:contentDescription="@string/zoom_in"
+                android:text="＋" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/pageIndicator"

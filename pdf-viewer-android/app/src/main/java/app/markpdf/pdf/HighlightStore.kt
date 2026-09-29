@@ -45,6 +45,11 @@ class HighlightStore(private val file: File) {
 
     fun page(page: Int): List<Highlight> = byPage[page] ?: emptyList()
 
+    val isEmpty: Boolean get() = byPage.values.all { it.isEmpty() }
+
+    /** 書き出し用のコピー（ページ番号 → 描いた順のハイライト） */
+    fun snapshot(): Map<Int, List<Highlight>> = byPage.mapValues { it.value.toList() }
+
     fun add(page: Int, color: Int, x1: Float, y1: Float, x2: Float, y2: Float, width: Float): Highlight {
         val h = Highlight(nextId++, page, color, x1, y1, x2, y2, width)
         byPage.getOrPut(page) { mutableListOf() }.add(h)

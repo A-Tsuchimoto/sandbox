@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.DocumentsContract
 import android.view.View
 import android.view.WindowInsets
 import android.widget.ImageButton
@@ -18,12 +19,17 @@ import app.markpdf.pdf.DocInfo
 import app.markpdf.pdf.Highlight
 import app.markpdf.pdf.HighlightStore
 import app.markpdf.pdf.PdfDoc
+import app.markpdf.pdf.SaveName
+import app.markpdf.pdf.export.HighlightExporter
 import app.markpdf.ui.PageListView
 import app.markpdf.ui.PageView
 import app.markpdf.ui.Palette
 import app.markpdf.ui.SwatchView
 import app.markpdf.ui.Tool
+import java.io.BufferedOutputStream
 import java.io.File
+import java.io.RandomAccessFile
+import java.nio.channels.FileChannel
 import java.util.concurrent.Executors
 
 class MainActivity : Activity(), PageView.Host {
@@ -38,6 +44,9 @@ class MainActivity : Activity(), PageView.Host {
     private lateinit var btnEraser: ImageButton
     private lateinit var btnUndo: ImageButton
     private lateinit var btnWidth: TextView
+    private lateinit var btnSave: ImageButton
+    private lateinit var zoomBar: View
+    private lateinit var zoomLabel: TextView
 
     private lateinit var pro: ProStatus
     private val prefs by lazy { getSharedPreferences("settings", MODE_PRIVATE) }
@@ -92,6 +101,9 @@ class MainActivity : Activity(), PageView.Host {
         btnEraser = findViewById(R.id.btnEraser)
         btnUndo = findViewById(R.id.btnUndo)
         btnWidth = findViewById(R.id.btnWidth)
+        btnSave = findViewById(R.id.btnSave)
+        zoomBar = findViewById(R.id.zoomBar)
+        zoomLabel = findViewById(R.id.zoomLabel)
 
         applyWindowInsets()
 
@@ -99,11 +111,17 @@ class MainActivity : Activity(), PageView.Host {
         if (Palette.isLocked(colorIndex, pro.isPro)) colorIndex = 0
         widthIndex = prefs.getInt(KEY_WIDTH, 1).coerceIn(0, Palette.widths.lastIndex)
 
-        findViewById<View>(R.id.btnOpen).setOnClickListener { openPicker() }
         emptyView.setOnClickListener { openPicker() }
         btnPen.setOnClickListener { toggleTool(Tool.PEN) }
         btnEraser.setOnClickListener { toggleTool(Tool.ERASER) }
         btnUndo.setOnClickListener { undo() }
+        btnSave.setOnClickListener { startSave() }
+        findViewById<View>(R.id.btnZoomIn).setOnClickListener { pageList.zoomIn() }
+        findViewById<View>(R.id.btnZoomOut).setOnClickListener { pageList.zoomOut() }
+        zoomLabel.setOnClickListener { pageList.resetZoom() }
+        pageList.onZoomChanged = { z ->
+            zoomLabel.text = getString(R.string.zoom_label, Math.round(z * 100))
+        }
         btnWidth.setOnClickListener { cycleWidth() }
         findViewById<View>(R.id.btnMore).setOnClickListener { showMenu(it) }
         pageList.onPageChanged = { page, total ->
@@ -138,12 +156,17 @@ class MainActivity : Activity(), PageView.Host {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQ_OPEN || resultCode != RESULT_OK) return
+        if (resultCode != RESULT_OK) return
         val uri = data?.data ?: return
-        runCatching {
-            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        when (requestCode) {
+            REQ_OPEN -> {
+                runCatching {
+                    contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                openDocument(uri)
+            }
+            REQ_SAVE -> saveTo(uri)
         }
-        openDocument(uri)
     }
 
     // ---- document ----
@@ -189,6 +212,7 @@ class MainActivity : Activity(), PageView.Host {
         titleView.text = info.displayName
         emptyView.visibility = View.GONE
         pageIndicator.visibility = if (d.pageCount > 0) View.VISIBLE else View.GONE
+        zoomBar.visibility = pageIndicator.visibility
         pageList.setDocument(d, this)
         updateToolUi()
     }
@@ -197,6 +221,70 @@ class MainActivity : Activity(), PageView.Host {
         titleView.text = docTitle ?: getString(R.string.app_name)
         val msg = if (e is SecurityException) R.string.open_failed_password else R.string.open_failed
         Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+    }
+
+    // ---- save ----
+
+    /** 保存先をシステムの画面で選んでもらう（ファイル名は「元の名前_highlighted.pdf」を提案） */
+    private fun startSave() {
+        val s = store ?: return
+        if (s.isEmpty) {
+            Toast.makeText(this, R.string.save_nothing, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("application/pdf")
+            .putExtra(Intent.EXTRA_TITLE, SaveName.suggest(docTitle ?: "document.pdf"))
+        startActivityForResult(intent, REQ_SAVE)
+    }
+
+    private fun saveTo(target: Uri) {
+        val src = docUri ?: return
+        val d = doc ?: return
+        val s = store ?: return
+        val snapshot = s.snapshot()
+        val pageCount = d.pageCount
+        btnSave.isEnabled = false
+        Toast.makeText(this, R.string.saving, Toast.LENGTH_SHORT).show()
+        loader.execute {
+            val result = runCatching { exportTo(src, target, snapshot, pageCount) }
+            if (result.isFailure) {
+                // 作りかけの空ファイルを残さない
+                runCatching { DocumentsContract.deleteDocument(contentResolver, target) }
+            }
+            runOnUiThread {
+                if (isDestroyed) return@runOnUiThread
+                btnSave.isEnabled = doc != null
+                result.onSuccess { name ->
+                    Toast.makeText(this, getString(R.string.saved, name), Toast.LENGTH_LONG).show()
+                }.onFailure { e ->
+                    val msg = when ((e as? HighlightExporter.UnsupportedPdfException)?.reason) {
+                        HighlightExporter.Reason.ENCRYPTED -> R.string.save_failed_encrypted
+                        null -> R.string.save_failed
+                        else -> R.string.save_failed_unsupported
+                    }
+                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    /** ブロッキング。元 PDF を一時ファイルに写し、ハイライトを追記して保存先に書く。保存先の表示名を返す。 */
+    private fun exportTo(src: Uri, target: Uri, highlights: Map<Int, List<Highlight>>, pageCount: Int): String {
+        val tmp = File.createTempFile("export", ".pdf", cacheDir)
+        try {
+            val input = contentResolver.openInputStream(src) ?: error("cannot read $src")
+            input.use { i -> tmp.outputStream().use { o -> i.copyTo(o) } }
+            RandomAccessFile(tmp, "r").use { raf ->
+                val buf = raf.channel.map(FileChannel.MapMode.READ_ONLY, 0, raf.length())
+                val out = contentResolver.openOutputStream(target, "w") ?: error("cannot write $target")
+                BufferedOutputStream(out).use { HighlightExporter.export(buf, it, highlights, pageCount) }
+            }
+        } finally {
+            tmp.delete()
+        }
+        return DocInfo.query(this, target).displayName
     }
 
     // ---- tools ----
@@ -216,6 +304,7 @@ class MainActivity : Activity(), PageView.Host {
     private fun updateToolUi() {
         val hasDoc = doc != null
         btnPen.isEnabled = hasDoc
+        btnSave.isEnabled = hasDoc
         btnEraser.isEnabled = hasDoc
         btnPen.isSelected = tool == Tool.PEN
         btnEraser.isSelected = tool == Tool.ERASER
@@ -267,9 +356,13 @@ class MainActivity : Activity(), PageView.Host {
 
     private fun showMenu(anchor: View) {
         val menu = PopupMenu(this, anchor)
-        menu.menu.add(0, MENU_PRO, 0, R.string.menu_pro)
+        menu.menu.add(0, MENU_OPEN, 0, R.string.open_pdf)
+        menu.menu.add(0, MENU_PRO, 1, R.string.menu_pro)
         menu.setOnMenuItemClickListener {
-            if (it.itemId == MENU_PRO) showProDialog()
+            when (it.itemId) {
+                MENU_OPEN -> openPicker()
+                MENU_PRO -> showProDialog()
+            }
             true
         }
         menu.show()
@@ -329,7 +422,9 @@ class MainActivity : Activity(), PageView.Host {
 
     private companion object {
         const val REQ_OPEN = 1
-        const val MENU_PRO = 1
+        const val REQ_SAVE = 2
+        const val MENU_OPEN = 1
+        const val MENU_PRO = 2
         const val KEY_URI = "doc_uri"
         const val KEY_COLOR = "color_index"
         const val KEY_WIDTH = "width_index"

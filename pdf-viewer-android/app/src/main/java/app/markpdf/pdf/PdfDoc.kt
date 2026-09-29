@@ -3,6 +3,7 @@ package app.markpdf.pdf
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.Handler
@@ -43,6 +44,9 @@ class PdfDoc private constructor(
     /** 高さ / 幅 */
     fun aspect(page: Int): Float = pageSizes[page * 2 + 1].toFloat() / pageSizes[page * 2]
 
+    /** ページ幅（pt、回転適用後） */
+    fun pageWidthPt(page: Int): Int = pageSizes[page * 2]
+
     fun cached(page: Int, width: Int): Bitmap? = cache.get(key(page, width))
 
     /**
@@ -53,6 +57,32 @@ class PdfDoc private constructor(
         if (closed) return@submit
         val key = key(page, width)
         val bmp = cache.get(key) ?: renderNow(page, width).also { cache.put(key, it) }
+        main.post { if (!closed) onDone(bmp) }
+    }
+
+    /**
+     * 拡大表示用：ページを幅 [pageWidthPx] で描いたときの矩形 ([left], [top], [w], [h]) だけを描画する。
+     * 見えている部分だけを高解像度で描くので、拡大してもメモリを食わない。キャッシュはしない。
+     */
+    fun renderRegion(
+        page: Int,
+        pageWidthPx: Int,
+        left: Int,
+        top: Int,
+        w: Int,
+        h: Int,
+        onDone: (Bitmap) -> Unit,
+    ): Future<*> = worker.submit {
+        if (closed) return@submit
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        bmp.eraseColor(Color.WHITE)
+        val scale = pageWidthPx.toFloat() / pageWidthPt(page)
+        val m = Matrix()
+        m.setScale(scale, scale)
+        m.postTranslate(-left.toFloat(), -top.toFloat())
+        renderer.openPage(page).use {
+            it.render(bmp, null, m, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+        }
         main.post { if (!closed) onDone(bmp) }
     }
 
