@@ -17,6 +17,16 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        // 試作配布用の固定デバッグ鍵（ビルドごとに鍵が変わると上書きインストールできないため）
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true

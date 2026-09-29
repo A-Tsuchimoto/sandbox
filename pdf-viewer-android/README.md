@@ -47,6 +47,17 @@ app/src/main/java/app/markpdf/
 
 ハイライトは「ページ幅・高さで正規化した始点と終点＋太さ」で保存しているため、画面サイズや回転が変わってもずれません。
 
+## スマホで試す（PC 不要）
+
+`main` に push すると GitHub Actions が自動でビルドし、Releases の
+**[pdf-viewer-debug](https://github.com/A-Tsuchimoto/sandbox/releases/tag/pdf-viewer-debug)** に最新の APK を置く。
+
+1. スマホのブラウザで上のリンクを開き、`markpdf-debug.apk` をダウンロード
+2. ファイルを開いてインストール（初回は「提供元不明のアプリ」の許可が必要）
+3. 2 回目以降も同じ手順で上書きインストールできる（ハイライトは残る）
+
+手動で再ビルドしたいときは Actions タブ → pdf-viewer-android → Run workflow。
+
 ## ビルド
 
 Android Studio でこのディレクトリ（`pdf-viewer-android/`）を開くか、
