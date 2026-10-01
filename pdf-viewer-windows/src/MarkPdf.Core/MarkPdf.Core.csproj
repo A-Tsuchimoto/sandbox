@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- UI に依存しないロジック（保存・吸着・幾何計算）。.NET Framework 4.8 のアプリと、Linux 上のテストの両方から使う -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>MarkPdf.Core</RootNamespace>
+  </PropertyGroup>
+</Project>

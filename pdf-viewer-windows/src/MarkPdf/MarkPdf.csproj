@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    .NET Framework 4.8（Windows 10/11 に標準搭載）＋ WPF。ランタイムの追加インストール不要で、実行ファイルも小さい。
+    PDF の描画は Windows 標準の Windows.Data.Pdf（WinRT）を使う。
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AssemblyName>MarkPDF</AssemblyName>
+    <RootNamespace>MarkPdf</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Windows.SDK.Contracts" Version="10.0.26100.1742" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../MarkPdf.Core/MarkPdf.Core.csproj" />
+  </ItemGroup>
+</Project>

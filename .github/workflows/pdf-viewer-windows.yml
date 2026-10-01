@@ -1,0 +1,62 @@
+name: pdf-viewer-windows
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "pdf-viewer-windows/**"
+      - ".github/workflows/pdf-viewer-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pdf-viewer-windows
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: pdf-viewer-windows
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Unit tests
+        run: dotnet test tests/MarkPdf.Core.Tests -c Release
+
+      # 試作版はデバッグビルド（「試作：Proを有効化」メニューが使える）
+      - name: Build
+        run: dotnet build src/MarkPdf -c Debug
+
+      - name: Package
+        run: |
+          New-Item -ItemType Directory -Force out/MarkPDF | Out-Null
+          Copy-Item src/MarkPdf/bin/Debug/net48/*.exe, src/MarkPdf/bin/Debug/net48/*.config, src/MarkPdf/bin/Debug/net48/*.dll out/MarkPDF/
+          Compress-Archive -Path out/MarkPDF -DestinationPath out/MarkPDF-windows.zip -Force
+          Get-ChildItem out/MarkPDF, out/MarkPDF-windows.zip | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MarkPDF-windows
+          path: pdf-viewer-windows/out/MarkPDF-windows.zip
+
+      # 常に最新版を 1 つの Release に置く
+      - name: Publish to "pdf-viewer-windows-debug" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete pdf-viewer-windows-debug --cleanup-tag --yes 2>$null
+          $sha = "${{ github.sha }}".Substring(0, 7)
+          gh release create pdf-viewer-windows-debug out/MarkPDF-windows.zip `
+            --target "${{ github.sha }}" `
+            --prerelease `
+            --title "MarkPDF Windows 試作版（最新ビルド）" `
+            --notes "コミット $sha からの自動ビルド（デバッグ版）。MarkPDF-windows.zip を展開して MarkPDF.exe を実行してください。Windows 10 / 11 用、追加インストール不要。"
