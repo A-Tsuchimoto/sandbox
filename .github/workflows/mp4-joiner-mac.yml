@@ -1,0 +1,26 @@
+name: mp4-joiner-mac
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "mp4-joiner-mac/**"
+      - ".github/workflows/mp4-joiner-mac.yml"
+  pull_request:
+    paths:
+      - "mp4-joiner-mac/**"
+      - ".github/workflows/mp4-joiner-mac.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: mp4-joiner-mac
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ffmpeg
+        run: brew install ffmpeg
+      - name: Test
+        run: python3 -m unittest discover -s tests -v
