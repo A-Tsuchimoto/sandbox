@@ -2,7 +2,6 @@ name: mp4-joiner-mac
 
 on:
   push:
-    branches: [main]
     paths:
       - "mp4-joiner-mac/**"
       - ".github/workflows/mp4-joiner-mac.yml"
@@ -12,15 +11,48 @@ on:
       - ".github/workflows/mp4-joiner-mac.yml"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
+concurrency:
+  group: mp4-joiner-mac-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
-    runs-on: macos-latest
+  build:
+    runs-on: macos-15
     defaults:
       run:
         working-directory: mp4-joiner-mac
     steps:
       - uses: actions/checkout@v4
-      - name: Install ffmpeg
-        run: brew install ffmpeg
-      - name: Test
-        run: python3 -m unittest discover -s tests -v
+
+      - name: Toolchain
+        run: |
+          sw_vers
+          swift --version
+
+      - name: Unit tests
+        run: swift test
+
+      - name: Build app
+        run: ./scripts/build-app.sh "${{ github.run_number }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MP4Joiner-mac
+          path: mp4-joiner-mac/build/MP4Joiner-mac.zip
+
+      # main に入ったら常に最新版を 1 つの Release に置く
+      - name: Publish to "mp4-joiner-mac-latest" release
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete mp4-joiner-mac-latest --cleanup-tag --yes 2>/dev/null || true
+          sha="$(echo "${{ github.sha }}" | cut -c1-7)"
+          gh release create mp4-joiner-mac-latest build/MP4Joiner-mac.zip \
+            --target "${{ github.sha }}" \
+            --prerelease \
+            --title "MP4 Joiner Mac版（最新ビルド）" \
+            --notes "コミット $sha からの自動ビルド。MP4Joiner-mac.zip を展開して「MP4 Joiner.app」をアプリケーションフォルダへ。macOS 13 以降（Apple Silicon / Intel）、追加インストール不要。初回は「システム設定 → プライバシーとセキュリティ」で「このまま開く」を押してください。"
