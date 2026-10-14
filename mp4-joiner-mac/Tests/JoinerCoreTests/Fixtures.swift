@@ -65,46 +65,7 @@ enum Fixtures {
         var writtenSamples = 0
         let chunk = 1024
 
-        func wait(_ input: AVAssetWriterInput) throws {
-            let deadline = Date().addingTimeInterval(20)
-            while !input.isReadyForMoreMediaData {
-                if Date() > deadline { throw NSError(domain: "fixture", code: 2, userInfo: [NSLocalizedDescriptionKey: "writer stalled"]) }
-                Thread.sleep(forTimeInterval: 0.002)
-            }
-        }
-
-        func appendAudio(until sample: Int) throws {
-            guard let aIn, let audioFormat else { return }
-            while writtenSamples < min(sample, totalSamples) {
-                let n = min(chunk, totalSamples - writtenSamples)
-                var pcm = [Int16](repeating: 0, count: n * 2)
-                for i in 0..<n {
-                    let v = Int16(sin(2 * Double.pi * 440 * Double(writtenSamples + i) / Double(sampleRate)) * 8000)
-                    pcm[i * 2] = v
-                    pcm[i * 2 + 1] = v
-                }
-                var block: CMBlockBuffer?
-                CMBlockBufferCreateWithMemoryBlock(allocator: nil, memoryBlock: nil, blockLength: n * 4,
-                                                   blockAllocator: nil, customBlockSource: nil, offsetToData: 0,
-                                                   dataLength: n * 4, flags: kCMBlockBufferAssureMemoryNowFlag,
-                                                   blockBufferOut: &block)
-                pcm.withUnsafeBytes { raw in
-                    _ = CMBlockBufferReplaceDataBytes(with: raw.baseAddress!, blockBuffer: block!,
-                                                      offsetIntoDestination: 0, dataLength: n * 4)
-                }
-                var sb: CMSampleBuffer?
-                CMAudioSampleBufferCreateReadyWithPacketDescriptions(
-                    allocator: nil, dataBuffer: block!, formatDescription: audioFormat, sampleCount: n,
-                    presentationTimeStamp: CMTime(value: CMTimeValue(writtenSamples), timescale: CMTimeScale(sampleRate)),
-                    packetDescriptions: nil, sampleBufferOut: &sb)
-                try wait(aIn)
-                guard aIn.append(sb!) else { throw writer.error ?? NSError(domain: "fixture", code: 3) }
-                writtenSamples += n
-            }
-        }
-
-        for f in 0..<frames {
-            try wait(vIn)
+        func appendFrame(_ f: Int) throws {
             var pb: CVPixelBuffer?
             CVPixelBufferPoolCreatePixelBuffer(nil, adaptor.pixelBufferPool!, &pb)
             let buffer = pb!
@@ -121,10 +82,55 @@ enum Fixtures {
             guard adaptor.append(buffer, withPresentationTime: CMTime(value: CMTimeValue(f), timescale: spec.fps)) else {
                 throw writer.error ?? NSError(domain: "fixture", code: 4)
             }
-            // 映像と音声を交互に入れる（片方だけ溜まると writer が止まる）
-            try appendAudio(until: Int(Double(f + 1) / Double(spec.fps) * Double(sampleRate)))
         }
-        try appendAudio(until: totalSamples)
+
+        func appendAudioChunk(_ aIn: AVAssetWriterInput, _ audioFormat: CMAudioFormatDescription) throws {
+            let n = min(chunk, totalSamples - writtenSamples)
+            var pcm = [Int16](repeating: 0, count: n * 2)
+            for i in 0..<n {
+                let v = Int16(sin(2 * Double.pi * 440 * Double(writtenSamples + i) / Double(sampleRate)) * 8000)
+                pcm[i * 2] = v
+                pcm[i * 2 + 1] = v
+            }
+            var block: CMBlockBuffer?
+            CMBlockBufferCreateWithMemoryBlock(allocator: nil, memoryBlock: nil, blockLength: n * 4,
+                                               blockAllocator: nil, customBlockSource: nil, offsetToData: 0,
+                                               dataLength: n * 4, flags: kCMBlockBufferAssureMemoryNowFlag,
+                                               blockBufferOut: &block)
+            pcm.withUnsafeBytes { raw in
+                _ = CMBlockBufferReplaceDataBytes(with: raw.baseAddress!, blockBuffer: block!,
+                                                  offsetIntoDestination: 0, dataLength: n * 4)
+            }
+            var sb: CMSampleBuffer?
+            CMAudioSampleBufferCreateReadyWithPacketDescriptions(
+                allocator: nil, dataBuffer: block!, formatDescription: audioFormat, sampleCount: n,
+                presentationTimeStamp: CMTime(value: CMTimeValue(writtenSamples), timescale: CMTimeScale(sampleRate)),
+                packetDescriptions: nil, sampleBufferOut: &sb)
+            guard aIn.append(sb!) else { throw writer.error ?? NSError(domain: "fixture", code: 3) }
+            writtenSamples += n
+        }
+
+        // 受け付け可能な方から入れていく（片方だけ待つと writer が止まる）
+        var frame = 0
+        let deadline = Date().addingTimeInterval(30)
+        while frame < frames || (aIn != nil && writtenSamples < totalSamples) {
+            var progressed = false
+            if frame < frames && vIn.isReadyForMoreMediaData {
+                try appendFrame(frame)
+                frame += 1
+                progressed = true
+            }
+            if let aIn, let audioFormat, writtenSamples < totalSamples, aIn.isReadyForMoreMediaData {
+                try appendAudioChunk(aIn, audioFormat)
+                progressed = true
+            }
+            if !progressed {
+                if Date() > deadline {
+                    throw NSError(domain: "fixture", code: 2, userInfo: [NSLocalizedDescriptionKey: "writer stalled"])
+                }
+                Thread.sleep(forTimeInterval: 0.001)
+            }
+        }
 
         vIn.markAsFinished()
         aIn?.markAsFinished()

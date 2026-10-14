@@ -7,7 +7,7 @@ import Foundation
 /// * 高速コピー: AVMutableComposition に並べて Passthrough で書き出す（再エンコードなし）
 /// * 再エンコード: Composition にフェード（不透明度・音量のランプ）と拡大縮小を指定し、
 ///   AVAssetReader → AVAssetWriter で書き出す。エンコードは Mac のハードウェアエンコーダが使われる
-public final class Joiner {
+public final class Joiner: @unchecked Sendable {
     /// (0...1 の進捗, メッセージ)。任意のスレッドから呼ばれる
     public typealias ProgressHandler = (Double, String) -> Void
 
@@ -28,6 +28,13 @@ public final class Joiner {
         let session = exportSession
         lock.unlock()
         session?.cancelExport()
+    }
+
+    /// キャンセル済みなら false
+    private func setExportSession(_ session: AVAssetExportSession?) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        exportSession = session
+        return !_cancelled
     }
 
     @discardableResult
@@ -181,14 +188,8 @@ public final class Joiner {
         session.outputFileType = url.pathExtension.lowercased() == "mov" ? .mov : .mp4
         session.shouldOptimizeForNetworkUse = true
 
-        lock.lock()
-        exportSession = session
-        let cancelledEarly = _cancelled
-        lock.unlock()
-        defer {
-            lock.lock(); exportSession = nil; lock.unlock()
-        }
-        if cancelledEarly { throw JoinError.cancelled }
+        guard setExportSession(session) else { throw JoinError.cancelled }
+        defer { _ = setExportSession(nil) }
 
         let total = plan.totalDuration
         let poller = Task {

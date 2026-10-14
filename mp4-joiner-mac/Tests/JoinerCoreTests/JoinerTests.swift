@@ -91,7 +91,9 @@ final class JoinTests: XCTestCase {
         XCTAssertEqual(plan.mode, .reencode)
         let joined = try await ClipInfo.load(out)
         XCTAssertEqual(joined.displaySize, CGSize(width: 320, height: 240))
-        XCTAssertEqual(joined.frameRate, 30, accuracy: 0.5)
+        // フレームの時刻は元動画のものを使う（25fps の区間はそのまま）ので、平均は 25〜30
+        XCTAssertGreaterThanOrEqual(joined.frameRate, 24.5)
+        XCTAssertLessThanOrEqual(joined.frameRate, 30.5)
         XCTAssertTrue(joined.hasAudio)
         XCTAssertEqual(joined.duration, 3, accuracy: 0.2)
     }
