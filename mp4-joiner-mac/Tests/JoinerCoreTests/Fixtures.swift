@@ -118,10 +118,13 @@ enum Fixtures {
             if frame < frames && vIn.isReadyForMoreMediaData {
                 try appendFrame(frame)
                 frame += 1
+                // 書き終えたらすぐ終了を伝える（でないと writer がもう片方を待ち続ける）
+                if frame == frames { vIn.markAsFinished() }
                 progressed = true
             }
             if let aIn, let audioFormat, writtenSamples < totalSamples, aIn.isReadyForMoreMediaData {
                 try appendAudioChunk(aIn, audioFormat)
+                if writtenSamples >= totalSamples { aIn.markAsFinished() }
                 progressed = true
             }
             if !progressed {
@@ -132,8 +135,6 @@ enum Fixtures {
             }
         }
 
-        vIn.markAsFinished()
-        aIn?.markAsFinished()
         writer.endSession(atSourceTime: CMTime(value: CMTimeValue(frames), timescale: spec.fps))
         let done = DispatchSemaphore(value: 0)
         writer.finishWriting { done.signal() }
