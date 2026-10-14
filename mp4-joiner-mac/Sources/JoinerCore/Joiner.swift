@@ -1,4 +1,4 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import CoreMedia
 import Foundation
 
@@ -328,15 +328,15 @@ public final class Joiner {
                       onSample: ((CMTime) -> Void)?) async {
         let queue = DispatchQueue(label: "mp4join.\(label)")
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-            var finished = false
-            func finish() {
-                guard !finished else { return }
-                finished = true
-                input.markAsFinished()
-                cont.resume()
-            }
+            let state = PumpState()
             input.requestMediaDataWhenReady(on: queue) {
-                guard !finished else { return }
+                func finish() {
+                    guard !state.finished else { return }
+                    state.finished = true
+                    input.markAsFinished()
+                    cont.resume()
+                }
+                guard !state.finished else { return }
                 while input.isReadyForMoreMediaData {
                     if self.isCancelled { return finish() }
                     guard let sample = output.copyNextSampleBuffer() else { return finish() }
@@ -346,6 +346,11 @@ public final class Joiner {
             }
         }
     }
+}
+
+/// pump のコールバックは同じシリアルキューで呼ばれるので、ロックなしで使える
+private final class PumpState: @unchecked Sendable {
+    var finished = false
 }
 
 // MARK: - helpers

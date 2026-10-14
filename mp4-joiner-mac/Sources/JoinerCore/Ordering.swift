@@ -31,7 +31,7 @@ public func isSameRecording(_ prev: String, _ next: String) -> Bool {
     return a.file == b.file && b.chapter == a.chapter + 1
 }
 
-public enum SortOrder: String, CaseIterable {
+public enum ClipOrder: String, CaseIterable {
     case gopro, date, name
 
     public var label: String {
@@ -56,7 +56,7 @@ func goproLess(_ a: String, _ b: String) -> Bool {
     }
 }
 
-public func sortClips(_ clips: [ClipInfo], by order: SortOrder) -> [ClipInfo] {
+public func sortClips(_ clips: [ClipInfo], by order: ClipOrder) -> [ClipInfo] {
     switch order {
     case .gopro:
         return clips.sorted { goproLess($0.name, $1.name) }

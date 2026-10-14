@@ -106,7 +106,7 @@ final class AppModel: ObservableObject {
 
     // MARK: - 並び
 
-    func sort(_ order: SortOrder) {
+    func sort(_ order: ClipOrder) {
         let sorted = sortClips(items.map(\.clip), by: order)
         let byURL = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
         items = sorted.compactMap { byURL[$0.url] }

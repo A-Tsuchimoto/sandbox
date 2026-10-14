@@ -1,4 +1,4 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import CoreMedia
 import Foundation
 
@@ -32,7 +32,7 @@ public enum JoinError: LocalizedError, Equatable {
 }
 
 /// 1 本の動画の情報
-public struct ClipInfo: Identifiable, Hashable {
+public struct ClipInfo: Identifiable, Hashable, @unchecked Sendable {
     public var id: URL { url }
     public let url: URL
     public var name: String { url.lastPathComponent }

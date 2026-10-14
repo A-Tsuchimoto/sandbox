@@ -32,7 +32,7 @@ struct ContentView: View {
                 .disabled(model.isRunning)
 
                 Menu {
-                    ForEach(SortOrder.allCases, id: \.self) { order in
+                    ForEach(ClipOrder.allCases, id: \.self) { order in
                         Button(order.label) { model.sort(order) }
                     }
                     Divider()
@@ -90,18 +90,23 @@ struct ContentView: View {
 
 /// ドロップされたファイルの URL を取り出す
 func loadURLs(_ providers: [NSItemProvider], completion: @escaping ([URL]) -> Void) {
+    final class Box: @unchecked Sendable {
+        let lock = NSLock()
+        var urls: [URL?]
+        init(_ n: Int) { urls = Array(repeating: nil, count: n) }
+    }
+    let box = Box(providers.count)
     let group = DispatchGroup()
-    var urls = [URL?](repeating: nil, count: providers.count)
     for (i, p) in providers.enumerated() {
         group.enter()
         _ = p.loadObject(ofClass: URL.self) { url, _ in
-            DispatchQueue.main.async {
-                urls[i] = url
-                group.leave()
-            }
+            box.lock.lock()
+            box.urls[i] = url
+            box.lock.unlock()
+            group.leave()
         }
     }
-    group.notify(queue: .main) { completion(urls.compactMap { $0 }) }
+    group.notify(queue: .main) { completion(box.urls.compactMap { $0 }) }
 }
 
 struct EmptyState: View {
