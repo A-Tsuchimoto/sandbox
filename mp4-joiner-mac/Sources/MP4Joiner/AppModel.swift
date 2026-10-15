@@ -30,6 +30,8 @@ final class AppModel: ObservableObject {
     @Published var quality: Quality = .standard
     /// "前のパス|次のパス" → フェードするか（つなぎ目ごとの手動指定）
     @Published var overrides: [String: Bool] = [:]
+    /// 180° 回転するクリップ
+    @Published var rotated: Set<URL> = []
     @Published var loadMessage = ""
     @Published var loadErrors: [String] = []
     @Published var isLoading = false
@@ -131,6 +133,20 @@ final class AppModel: ObservableObject {
     func removeAll() {
         items.removeAll()
         overrides.removeAll()
+        rotated.removeAll()
+    }
+
+    // MARK: - 回転
+
+    func isRotated(_ id: URL) -> Bool { rotated.contains(id) }
+
+    /// 指定したクリップの 180° 回転を切り替える（複数なら、1 つでも未回転があれば全部回転）
+    func toggleRotation(_ ids: Set<URL>) {
+        if ids.isSubset(of: rotated) {
+            rotated.subtract(ids)
+        } else {
+            rotated.formUnion(ids)
+        }
     }
 
     // MARK: - つなぎ目
@@ -155,7 +171,8 @@ final class AppModel: ObservableObject {
             transitions: items.count > 1 ? (0..<items.count - 1).map { transition(after: $0) } : [],
             fadeEdges: fadeEdges,
             codec: codec,
-            quality: quality)
+            quality: quality,
+            rotations: items.map { rotated.contains($0.id) })
     }
 
     var plan: Result<JoinPlan, Error>? {

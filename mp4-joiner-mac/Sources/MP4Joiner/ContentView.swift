@@ -63,6 +63,10 @@ struct ContentView: View {
                         Button("上へ") { model.move(index, by: -1) }.disabled(index == 0)
                         Button("下へ") { model.move(index, by: 1) }.disabled(index == model.items.count - 1)
                         Divider()
+                        Button(model.isRotated(item.id) ? "180° 回転を解除" : "180° 回転（上下逆さまを直す）") {
+                            model.toggleRotation(selection.contains(item.id) ? selection : [item.id])
+                        }
+                        Divider()
                         Button("Finder で表示") { NSWorkspace.shared.activateFileViewerSelecting([item.id]) }
                         Button("リストから外す") { model.remove(selection.contains(item.id) ? selection : [item.id]) }
                     }
@@ -157,6 +161,13 @@ struct ClipRow: View {
                 }
                 Spacer(minLength: 8)
                 HStack(spacing: 2) {
+                    Toggle(isOn: Binding(get: { model.isRotated(item.id) },
+                                         set: { _ in model.toggleRotation([item.id]) })) {
+                        Label("180°", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .toggleStyle(.button)
+                    .help("上下逆さまの動画を 180° 回転します")
+                    .padding(.trailing, 6)
                     Button { model.move(index, by: -1) } label: { Image(systemName: "chevron.up") }
                         .disabled(index == 0)
                         .help("上へ")
@@ -197,6 +208,8 @@ struct ClipRow: View {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
+                    .rotationEffect(.degrees(model.isRotated(item.id) ? 180 : 0))
+                    .animation(.easeInOut(duration: 0.2), value: model.isRotated(item.id))
             } else {
                 ProgressView().controlSize(.small)
             }

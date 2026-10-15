@@ -11,6 +11,7 @@ public enum JoinError: LocalizedError, Equatable {
     case outputFolderMissing(String)
     case notEnoughSpace(need: Int64, free: Int64)
     case transitionCountMismatch
+    case rotationCountMismatch
     case failed(String)
     case cancelled
 
@@ -25,6 +26,7 @@ public enum JoinError: LocalizedError, Equatable {
             return String(format: "保存先の空き容量が足りません（必要 約%.1f GB / 空き %.1f GB）。",
                           Double(need) / 1e9, Double(free) / 1e9)
         case .transitionCountMismatch: return "つなぎ目の指定数がクリップ数と合いません。"
+        case .rotationCountMismatch: return "回転の指定数がクリップ数と合いません。"
         case .failed(let why): return "書き出しに失敗しました:\n\(why)"
         case .cancelled: return "キャンセルしました。"
         }

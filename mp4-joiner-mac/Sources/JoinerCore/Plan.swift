@@ -43,9 +43,13 @@ public struct JoinOptions {
     public var codec: VideoCodec = .h264
     public var quality: Quality = .standard
     public var forceReencode = false
+    /// クリップごとに 180° 回転するか（要素数 = クリップ数）。nil なら回転なし
+    public var rotations: [Bool]?
 
     public init(fade: Double = 0, transitions: [Bool]? = nil, fadeEdges: Bool = false,
-                codec: VideoCodec = .h264, quality: Quality = .standard, forceReencode: Bool = false) {
+                codec: VideoCodec = .h264, quality: Quality = .standard, forceReencode: Bool = false,
+                rotations: [Bool]? = nil) {
+        self.rotations = rotations
         self.fade = fade
         self.transitions = transitions
         self.fadeEdges = fadeEdges
@@ -78,6 +82,8 @@ public struct JoinPlan: Equatable {
     public var renderSize: CGSize
     public var frameRate: Double
     public var fades: [Fade]
+    /// クリップごとの 180° 回転
+    public var rotations: [Bool]
     public var totalDuration: Double
     public var videoBitRate: Int
     public var estimatedBytes: Int64
@@ -108,18 +114,25 @@ public func makePlan(_ clips: [ClipInfo], _ opts: JoinOptions) throws -> JoinPla
     let fade = max(0, opts.fade)
     if fade == 0 { trans = Array(repeating: false, count: n - 1) }
     let edges = fade > 0 && opts.fadeEdges
+    let rotations = opts.rotations ?? Array(repeating: false, count: n)
+    guard rotations.count == n else { throw JoinError.rotationCountMismatch }
+    // 全部回転なら、映像の向き情報を書き換えるだけで済む（再エンコード不要）
+    let mixedRotation = Set(rotations).count > 1
 
     let total = clips.reduce(0) { $0 + $1.duration }
     let anyFade = trans.contains(true) || edges
     let sameFormat = Set(clips.map(\.formatSignature)).count == 1
 
-    if !anyFade && sameFormat && !opts.forceReencode {
+    if !anyFade && sameFormat && !mixedRotation && !opts.forceReencode {
         return JoinPlan(
             mode: .passthrough,
-            reason: "全クリップが同じ形式なので、再エンコードせず高速に連結します（画質劣化なし）。",
+            reason: rotations[0]
+                ? "全クリップを 180° 回転し、再エンコードせず高速に連結します（画質劣化なし）。"
+                : "全クリップが同じ形式なので、再エンコードせず高速に連結します（画質劣化なし）。",
             renderSize: clips[0].displaySize,
             frameRate: clips[0].frameRate,
             fades: Array(repeating: Fade(0, 0), count: n),
+            rotations: rotations,
             totalDuration: total,
             videoBitRate: 0,
             estimatedBytes: clips.reduce(0) { $0 + $1.fileSize })
@@ -128,6 +141,8 @@ public func makePlan(_ clips: [ClipInfo], _ opts: JoinOptions) throws -> JoinPla
     let reason: String
     if anyFade {
         reason = "フェード処理のため再エンコードします。"
+    } else if mixedRotation && sameFormat {
+        reason = "一部のクリップだけ 180° 回転するため再エンコードします。"
     } else if opts.forceReencode {
         reason = "再エンコードが指定されています。"
     } else {
@@ -155,6 +170,7 @@ public func makePlan(_ clips: [ClipInfo], _ opts: JoinOptions) throws -> JoinPla
         renderSize: render,
         frameRate: fps,
         fades: fades,
+        rotations: rotations,
         totalDuration: total,
         videoBitRate: bitRate,
         estimatedBytes: Int64(total * Double(bitRate + 192_000) / 8))

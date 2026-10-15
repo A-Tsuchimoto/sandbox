@@ -144,7 +144,8 @@ public final class Joiner: @unchecked Sendable {
             instr.timeRange = CMTimeRange(start: cursor, duration: dur)
             instr.backgroundColor = CGColor(gray: 0, alpha: 1)
             let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: vTrack)
-            layer.setTransform(fitTransform(natural: clip.naturalSize, preferred: clip.transform, into: render), at: cursor)
+            let preferred = orientedTransform(natural: clip.naturalSize, preferred: clip.transform, rotate180: plan.rotations[i])
+            layer.setTransform(fitTransform(natural: clip.naturalSize, preferred: preferred, into: render), at: cursor)
             if fade.fadeIn > 0 {
                 let r = CMTimeRange(start: cursor, duration: seconds(fade.fadeIn))
                 layer.setOpacityRamp(fromStartOpacity: 0, toEndOpacity: 1, timeRange: r)
@@ -180,7 +181,8 @@ public final class Joiner: @unchecked Sendable {
         progress.send(0, "\(clips.count) 本を高速連結中…", force: true)
         let built = try await build(clips, plan: plan)
         // 映像はそのまま使うので、回転情報は元のクリップのものを引き継ぐ
-        built.videoTrack.preferredTransform = clips[0].transform
+        built.videoTrack.preferredTransform = orientedTransform(
+            natural: clips[0].naturalSize, preferred: clips[0].transform, rotate180: plan.rotations[0])
         guard let session = AVAssetExportSession(asset: built.composition, presetName: AVAssetExportPresetPassthrough) else {
             throw JoinError.failed("書き出しを開始できません")
         }
@@ -355,6 +357,15 @@ private final class PumpState: @unchecked Sendable {
 }
 
 // MARK: - helpers
+
+/// 元の向きに、必要なら 180° 回転を足す（結果が原点から始まるよう平行移動も調整）
+func orientedTransform(natural: CGSize, preferred: CGAffineTransform, rotate180: Bool) -> CGAffineTransform {
+    guard rotate180 else { return preferred }
+    // rotationAngle(.pi) だと誤差が出るので係数を直接指定
+    let t = preferred.concatenating(CGAffineTransform(a: -1, b: 0, c: 0, d: -1, tx: 0, ty: 0))
+    let rect = CGRect(origin: .zero, size: natural).applying(t)
+    return t.concatenating(CGAffineTransform(translationX: -rect.minX, y: -rect.minY))
+}
 
 /// 回転を反映し、縦横比を保ったまま render に収めて中央に置く（余白は黒）
 func fitTransform(natural: CGSize, preferred: CGAffineTransform, into render: CGSize) -> CGAffineTransform {

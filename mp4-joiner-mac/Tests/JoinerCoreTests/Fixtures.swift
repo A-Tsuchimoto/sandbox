@@ -11,6 +11,8 @@ enum Fixtures {
         var height = 240
         var fps: Int32 = 30
         var gray: UInt8 = 255
+        /// 指定すると下半分をこの明るさにする（上下の向きの確認用）
+        var bottomGray: UInt8?
         var audio = true
         var transform: CGAffineTransform = .identity
     }
@@ -73,6 +75,10 @@ enum Fixtures {
             let base = CVPixelBufferGetBaseAddress(buffer)!
             let rowBytes = CVPixelBufferGetBytesPerRow(buffer)
             memset(base, Int32(spec.gray), rowBytes * spec.height)
+            if let bottom = spec.bottomGray {
+                // ピクセルバッファの 0 行目が画面の上
+                memset(base + rowBytes * (spec.height / 2), Int32(bottom), rowBytes * (spec.height - spec.height / 2))
+            }
             // アルファは不透明に
             let p = base.assumingMemoryBound(to: UInt8.self)
             for y in 0..<spec.height {
@@ -144,17 +150,25 @@ enum Fixtures {
 
     /// 指定時刻のフレームの平均の明るさ (0...255)
     static func luma(_ url: URL, at seconds: Double) async throws -> Int {
+        let (top, bottom) = try await lumaHalves(url, at: seconds)
+        return (top + bottom) / 2
+    }
+
+    /// 指定時刻のフレームの (上端付近, 下端付近) の明るさ。向き情報（回転）を反映した見た目で測る
+    static func lumaHalves(_ url: URL, at seconds: Double) async throws -> (top: Int, bottom: Int) {
         let gen = AVAssetImageGenerator(asset: AVURLAsset(url: url))
+        gen.appliesPreferredTrackTransform = true
         gen.requestedTimeToleranceBefore = .zero
         gen.requestedTimeToleranceAfter = .zero
         let image = try await gen.image(at: CMTime(seconds: seconds, preferredTimescale: 600)).image
-        var pixel = [UInt8](repeating: 0, count: 1)
-        pixel.withUnsafeMutableBytes { buf in
-            let ctx = CGContext(data: buf.baseAddress, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 1,
+        // 1×4 に縮小して、メモリ上の 0 行目（画像の上端）と 3 行目（下端）を読む
+        var pixels = [UInt8](repeating: 0, count: 4)
+        pixels.withUnsafeMutableBytes { buf in
+            let ctx = CGContext(data: buf.baseAddress, width: 1, height: 4, bitsPerComponent: 8, bytesPerRow: 1,
                                 space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)!
             ctx.interpolationQuality = .medium
-            ctx.draw(image, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+            ctx.draw(image, in: CGRect(x: 0, y: 0, width: 1, height: 4))
         }
-        return Int(pixel[0])
+        return (Int(pixels[0]), Int(pixels[3]))
     }
 }

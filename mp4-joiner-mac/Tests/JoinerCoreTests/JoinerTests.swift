@@ -155,6 +155,42 @@ final class JoinTests: XCTestCase {
         }
     }
 
+    func testRotateSomeClips() async throws {
+        // 上が白・下が黒の動画。2 本目だけ 180° 回転 → 上が黒・下が白になるはず
+        let spec = Fixtures.Spec(seconds: 1, gray: 255, bottomGray: 0)
+        let a = try await clip("a.mp4", spec)
+        let b = try await clip("b.mp4", spec)
+        let out = url("out.mp4")
+        let plan = try await Joiner().join([a, b], to: out, options: JoinOptions(rotations: [false, true]))
+        XCTAssertEqual(plan.mode, .reencode)
+
+        let first = try await Fixtures.lumaHalves(out, at: 0.5)
+        XCTAssertGreaterThan(first.top, 200)
+        XCTAssertLessThan(first.bottom, 50)
+        let second = try await Fixtures.lumaHalves(out, at: 1.5)
+        XCTAssertLessThan(second.top, 50)
+        XCTAssertGreaterThan(second.bottom, 200)
+    }
+
+    func testRotateAllClipsIsPassthrough() async throws {
+        let spec = Fixtures.Spec(seconds: 1, gray: 255, bottomGray: 0)
+        let a = try await clip("a.mp4", spec)
+        let b = try await clip("b.mp4", spec)
+        let out = url("out.mp4")
+        let plan = try await Joiner().join([a, b], to: out, options: JoinOptions(rotations: [true, true]))
+        XCTAssertEqual(plan.mode, .passthrough)
+
+        let joined = try await ClipInfo.load(out)
+        XCTAssertEqual(joined.displaySize, CGSize(width: 320, height: 240))
+        XCTAssertEqual(joined.transform.a, -1)
+        XCTAssertEqual(joined.transform.d, -1)
+        for t in [0.5, 1.5] {
+            let l = try await Fixtures.lumaHalves(out, at: t)
+            XCTAssertLessThan(l.top, 50, "t=\(t)")
+            XCTAssertGreaterThan(l.bottom, 200, "t=\(t)")
+        }
+    }
+
     func testExpandFolder() throws {
         try Fixtures.makeClip(url("GX020001.MP4"), .init(seconds: 0.3))
         try Fixtures.makeClip(url("GX010001.MP4"), .init(seconds: 0.3))
@@ -212,6 +248,26 @@ final class PlanTests: XCTestCase {
                            frameRate: 30, videoBitRate: 5_000_000)
         let plan = try makePlan([src, src], JoinOptions(fade: 1, quality: .high))
         XCTAssertEqual(plan.videoBitRate, 5_000_000)
+    }
+
+    func testRotationPlan() throws {
+        let some = try makePlan([clip("a"), clip("b")], JoinOptions(rotations: [false, true]))
+        XCTAssertEqual(some.mode, .reencode)
+        XCTAssertEqual(some.rotations, [false, true])
+        let all = try makePlan([clip("a"), clip("b")], JoinOptions(rotations: [true, true]))
+        XCTAssertEqual(all.mode, .passthrough)
+        XCTAssertThrowsError(try makePlan([clip("a"), clip("b")], JoinOptions(rotations: [true])))
+    }
+
+    func testOrientedTransform() {
+        let natural = CGSize(width: 320, height: 240)
+        let t = orientedTransform(natural: natural, preferred: .identity, rotate180: true)
+        XCTAssertEqual(CGRect(origin: .zero, size: natural).applying(t), CGRect(x: 0, y: 0, width: 320, height: 240))
+        XCTAssertEqual(CGPoint(x: 0, y: 0).applying(t), CGPoint(x: 320, y: 240))
+        // 縦向き（90°）の動画を 180° 回すと 270°
+        let p = orientedTransform(natural: natural, preferred: CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 240, ty: 0), rotate180: true)
+        XCTAssertEqual(CGRect(origin: .zero, size: natural).applying(p), CGRect(x: 0, y: 0, width: 240, height: 320))
+        XCTAssertEqual(orientedTransform(natural: natural, preferred: .identity, rotate180: false), .identity)
     }
 
     func testTransitionCountMismatch() {
