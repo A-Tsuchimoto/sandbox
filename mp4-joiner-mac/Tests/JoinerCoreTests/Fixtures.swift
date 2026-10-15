@@ -161,14 +161,18 @@ enum Fixtures {
         gen.requestedTimeToleranceBefore = .zero
         gen.requestedTimeToleranceAfter = .zero
         let image = try await gen.image(at: CMTime(seconds: seconds, preferredTimescale: 600)).image
-        // 1×4 に縮小して、メモリ上の 0 行目（画像の上端）と 3 行目（下端）を読む
-        var pixels = [UInt8](repeating: 0, count: 4)
-        pixels.withUnsafeMutableBytes { buf in
-            let ctx = CGContext(data: buf.baseAddress, width: 1, height: 4, bitsPerComponent: 8, bytesPerRow: 1,
-                                space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)!
-            ctx.interpolationQuality = .medium
-            ctx.draw(image, in: CGRect(x: 0, y: 0, width: 1, height: 4))
+        // 等倍のグレースケールに描いて、上端 1/4 と下端 1/4 の平均をとる（メモリ上の 0 行目が画像の上端）
+        let w = image.width, h = image.height
+        let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
+                            space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)!
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        let data = ctx.data!.assumingMemoryBound(to: UInt8.self)
+        let stride = ctx.bytesPerRow
+        func average(_ rows: Range<Int>) -> Int {
+            var sum = 0
+            for y in rows { for x in 0..<w { sum += Int(data[y * stride + x]) } }
+            return sum / max(1, rows.count * w)
         }
-        return (Int(pixels[0]), Int(pixels[3]))
+        return (average(0..<h / 4), average(h - h / 4..<h))
     }
 }
